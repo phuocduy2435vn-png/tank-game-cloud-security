@@ -76,6 +76,7 @@ class Canvas {
     present() {
         this.displayContext.save();
         this.displayContext.setTransform(1, 0, 0, 1, 0, 0);
+        this.displayContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.displayContext.drawImage(this.bufferCanvas, 0, 0);
         this.displayContext.restore();
     }
