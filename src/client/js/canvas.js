@@ -1,4 +1,17 @@
 var global = require('./global');
+
+function clearCanvas(context, width, height) {
+    context.save();
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.globalAlpha = 1;
+    context.globalCompositeOperation = 'source-over';
+    context.beginPath();
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = '#d8d0b5';
+    context.fillRect(0, 0, width, height);
+    context.restore();
+}
+
 /**
  * This is the class that holds a reference to the canvas object.
  * Here we will attach event listeners, and even write our drawing functions. (I think)
@@ -9,6 +22,12 @@ class Canvas {
         this.canvas = document.getElementById(canvasId);
         this.canvas.width = global.screenWidth;
         this.canvas.height = global.screenHeight;
+
+        this.bufferCanvas = document.createElement('canvas');
+        this.bufferCanvas.width = global.screenWidth;
+        this.bufferCanvas.height = global.screenHeight;
+        this.bufferContext = this.bufferCanvas.getContext('2d');
+        this.displayContext = this.canvas.getContext('2d');
 
         //set the canvas's parent, this will be used for accessing fields like "keysPressed"
         this.canvas.parent = this;
@@ -31,10 +50,12 @@ class Canvas {
 
     setHeight(height) {
         this.canvas.height = height;
+        this.bufferCanvas.height = height;
     }
 
     setWidth(width) {
         this.canvas.width = width;
+        this.bufferCanvas.width = width;
     }
 
     //get a reference to the canvas element
@@ -44,12 +65,19 @@ class Canvas {
 
     //get the component you can actually draw on
     getContext() {
-        return this.canvas.getContext("2d");
+        return this.bufferContext;
     }
 
     //make the canvas blank
     clear() {
-        this.getContext().clearRect(0,0,this.canvas.width,this.canvas.height);
+        clearCanvas(this.bufferContext, this.bufferCanvas.width, this.bufferCanvas.height);
+    }
+
+    present() {
+        this.displayContext.save();
+        this.displayContext.setTransform(1, 0, 0, 1, 0, 0);
+        this.displayContext.drawImage(this.bufferCanvas, 0, 0);
+        this.displayContext.restore();
     }
 
     //get the keys pressed from the canvas
@@ -106,3 +134,4 @@ class Canvas {
 }
 
 module.exports = Canvas;
+module.exports.clearCanvas = clearCanvas;

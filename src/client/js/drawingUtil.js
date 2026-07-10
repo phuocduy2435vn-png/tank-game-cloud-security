@@ -10,7 +10,7 @@ class DrawingUtil {
     constructor(canvas, perspective = {x: global.gameWidth / 2, y: global.gameHeight / 2},
                 drawingOrder = global.drawing.drawingOrder) {
         this.canvas = canvas;
-        this.context2D = canvas.getContext("2d");
+        this.context2D = canvas.getContext ? canvas.getContext("2d") : canvas.getCanvas().getContext("2d");
 
         /**
          * Perspective is an important part of the DrawingUtil and
@@ -34,6 +34,13 @@ class DrawingUtil {
      * "perspectiveDraw" method.
      */
 
+    getWorldToScreenTranslation(perspective) {
+        return {
+            x: Math.round(-(perspective.x - global.screenWidth / 2)),
+            y: Math.round(-(perspective.y - global.screenHeight / 2))
+        };
+    }
+
     /**
      * Draw the background
      */
@@ -42,22 +49,22 @@ class DrawingUtil {
         this.context2D.fillStyle = this.context2D.createPattern(document.getElementById('background_image'), 'repeat');
 
         //translate canvas to where the edge of the game board is
-        var translateX = -(perspective.x - global.screenWidth/2);
-        var translateY = -(perspective.y - global.screenHeight/2);
+        var translation = this.getWorldToScreenTranslation(perspective);
 
-        this.context2D.translate(translateX, translateY);
+        this.context2D.save();
+        this.context2D.translate(translation.x, translation.y);
         this.context2D.fillRect(0,0,global.gameWidth, global.gameHeight);
-        this.context2D.translate(-translateX, -translateY);
+        this.context2D.restore();
     }
 
     /**
      * Draw all tanks (including user's tank).
      */
     tanksDraw(tanks) {
-        var translateX = -(this.perspective.x - global.screenWidth / 2);
-        var translateY = -(this.perspective.y - global.screenHeight / 2);
+        var translation = this.getWorldToScreenTranslation(this.perspective);
 
-        this.context2D.translate(translateX, translateY);
+        this.context2D.save();
+        this.context2D.translate(translation.x, translation.y);
 
         for(var tank of tanks) {
             // Draw tank hull
@@ -66,20 +73,15 @@ class DrawingUtil {
             // Draw tank gun
             Sprite.render(tank.spriteTankGun, this.context2D, this.tankGunImage, tank.x, tank.y, tank.rotationCorrection);
 
-            //Draw screen names and kills
-            let startX = tank.x + global.drawing.playerInfo.tankXOffset;
-            let startY = tank.y + global.drawing.playerInfo.tankYOffset;
-
-            this.context2D.font = global.drawing.playerInfo.font;
-            this.context2D.fillStyle = global.drawing.playerInfo.fontColor;
-            this.context2D.fillText(`${tank.screenName} - ${tank.kills}`, startX, startY);
-
-            // Update boost bar
+            // Update boost bar if present
             let newBoostPercent = (tank._boostRemaining / 100) * 100;
-            document.getElementById("boost-bar").style.width = newBoostPercent + "%";
+            let boostElement = document.getElementById("boost-bar");
+            if (boostElement) {
+                boostElement.style.width = newBoostPercent + "%";
+            }
         }
 
-        this.context2D.translate(-translateX, -translateY);
+        this.context2D.restore();
     }
 
     /**
@@ -89,9 +91,9 @@ class DrawingUtil {
      *          The list of bullets to draw.
      */
     bulletsDraw(bullets) {
-        var translateX = -(this.perspective.x - global.screenWidth/2);
-        var translateY = -(this.perspective.y - global.screenHeight/2);
-        this.context2D.translate(translateX, translateY);
+        var translation = this.getWorldToScreenTranslation(this.perspective);
+        this.context2D.save();
+        this.context2D.translate(translation.x, translation.y);
 
         for(var i = 0; i < bullets.length; i++){
             var bullet = bullets[i];
@@ -99,11 +101,11 @@ class DrawingUtil {
             //draw circle in the center to represent bullet
             this.context2D.beginPath();
             this.context2D.fillStyle = 'black';
-            this.context2D.arc(bullet.x, bullet.y, 4, 0, 2 * Math.PI);
+            this.context2D.arc(Math.round(bullet.x), Math.round(bullet.y), 4, 0, 2 * Math.PI);
             this.context2D.fill();
         }
 
-        this.context2D.translate(-translateX, -translateY);
+        this.context2D.restore();
 
     }
 
@@ -114,9 +116,9 @@ class DrawingUtil {
      *          The list of tank tracks to draw.
      */
     tracksDraw(tracks) {
-        var translateX = -(this.perspective.x - global.screenWidth / 2);
-        var translateY = -(this.perspective.y - global.screenHeight / 2);
-        this.context2D.translate(translateX, translateY);
+        var translation = this.getWorldToScreenTranslation(this.perspective);
+        this.context2D.save();
+        this.context2D.translate(translation.x, translation.y);
 
         this.context2D.fillStyle = "#bfa372";
 
@@ -124,28 +126,28 @@ class DrawingUtil {
             Util.drawRotatedRect(this.context2D, track.x, track.y, track.width, track.height, track.angle);
         }
 
-        this.context2D.translate(-translateX, -translateY);
+        this.context2D.restore();
     }
 
     wallsDraw(walls) {
-        var translateX = -(this.perspective.x - global.screenWidth/2);
-        var translateY = -(this.perspective.y - global.screenHeight/2);
-        this.context2D.translate(translateX, translateY);
+        var translation = this.getWorldToScreenTranslation(this.perspective);
+        this.context2D.save();
+        this.context2D.translate(translation.x, translation.y);
         this.context2D.fillStyle = 'black';
 
         for(var wall of walls){
-            this.context2D.fillRect(wall.x, wall.y, wall.w, wall.h);
+            this.context2D.fillRect(Math.round(wall.x), Math.round(wall.y), Math.round(wall.w), Math.round(wall.h));
         }
         
-        this.context2D.translate(-translateX, -translateY);
+        this.context2D.restore();
 
     }
 
     ammoDraw(ammo) {
         if(global.playerType === 'PLAYER') {
-            var translateX = -(this.perspective.x - global.screenWidth / 2);
-            var translateY = -(this.perspective.y - global.screenHeight / 2);
-            this.context2D.translate(translateX, translateY);
+            var translation = this.getWorldToScreenTranslation(this.perspective);
+            this.context2D.save();
+            this.context2D.translate(translation.x, translation.y);
 
             this.context2D.fillStyle = global.drawing.ammo.fill;
 
@@ -159,7 +161,7 @@ class DrawingUtil {
                     this.context2D.rect((startX + (i * (global.drawing.ammo.width + global.drawing.ammo.spacing))), startY, global.drawing.ammo.width, global.drawing.ammo.height);
                 }
             }
-            this.context2D.translate(-translateX, -translateY);
+            this.context2D.restore();
         }
     }
 

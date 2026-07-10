@@ -46,7 +46,6 @@ function loadLeaderboard() {
 
 //set up the form where the user can enter their name
 function setupStartScreen() {
-  //see if we need to get the screenNameForm for the first time
   if (typeof screenNameForm === "undefined") {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "html/start_screen.html", true);
@@ -83,7 +82,6 @@ function spectate() {
 }
 
 function init() {
-  // Kiêm tra kỹ: Lệnh emit dưới đây đã xóa bỏ hoàn toàn dấu phẩy thừa ở cuối tham số
   socket.emit(
     "init",
     document.getElementById("input-username").value.trim().slice(0, 10)
@@ -94,7 +92,7 @@ function init() {
   screenNameForm.parentNode.removeChild(screenNameForm);
 
   canvasGameBoard = new Canvas();
-  drawingUtil = new DrawingUtil(canvasGameBoard.getCanvas());
+  drawingUtil = new DrawingUtil(canvasGameBoard);
 
   document.getElementById("leaderboard").style.display = "block";
   document.getElementById("boost").style.display = "block";
@@ -123,15 +121,16 @@ function updateClientView() {
   //clear canvas
   canvasGameBoard.clear();
 
-  /**
-   * Trying to enforce the server sending a perspective object over
-   */
   if (typeof clientGameObjects.perspective !== "undefined") {
     drawingUtil.setPerspective(
       clientGameObjects.perspective.x,
       clientGameObjects.perspective.y
     );
     drawingUtil.drawGameObjects(clientGameObjects);
+    canvasGameBoard.present();
+    
+    // MỚI: Tự động cập nhật thanh máu và thanh năng lượng (Boost) của chính mình lên UI HTML
+    updatePlayerStatusUI();
   } else {
     console.log(
       "unable to find perspective, make sure server is sending perspective object with x and y"
@@ -140,26 +139,48 @@ function updateClientView() {
 }
 
 /**
+ * MỚI: Tìm kiếm dữ liệu tank của chính mình trong danh sách gửi về để cập nhật thanh máu (HP) và thanh Tốc độ (Boost)
+ */
+function updatePlayerStatusUI() {
+  if (global.playerType === "SPECTATOR" || !clientGameObjects.tanks) return;
+
+  // Lọc tìm tank của mình dựa vào tên hiển thị screenName đã lưu lúc Welcome
+  var myTank = clientGameObjects.tanks.find(function(t) {
+    return t.screenName === global.screenName;
+  });
+
+  if (myTank) {
+    // Cập nhật thanh máu HTML (Ví dụ ID phần tử thanh máu là 'hp-bar' hoặc thanh hiển thị nội bộ của bạn)
+    var hpElement = document.getElementById("hp-bar") || document.getElementById("hp");
+    if (hpElement) {
+      var currentHp = typeof myTank.hp !== "undefined" ? myTank.hp : 100;
+      hpElement.style.width = currentHp + "%";
+      if (currentHp <= 30) {
+        hpElement.style.backgroundColor = "#ff4d4d"; // Máu thấp hiện đỏ
+      } else {
+        hpElement.style.backgroundColor = "#4caf50"; // Máu xanh
+      }
+    }
+
+    // Cập nhật thanh năng lượng Boost tăng tốc
+    var boostElement = document.getElementById("boost-bar") || document.getElementById("boost");
+    if (boostElement) {
+      var currentBoost = typeof myTank.boostRemaining !== "undefined" ? myTank.boostRemaining : 100;
+      boostElement.style.width = currentBoost + "%";
+    }
+  }
+}
+
+/**
  * Here is where we set up the callbacks for our socket.
  * So basically we give the socket all the callbacks for the different events it might receive.
- *
  */
 function setupPlaySocket(socket) {
-  /**
-   *
-   * Server will send a welcome event with data the player needs to initialize itself
-   * The purpose of the event is to acknowledge that a user has joined
-   * Client will respond when it is ready to play the game
-   *
-   */
   socket.on("welcome", function (clientInitData, gameConfig) {
-    /**
-     * Here the client gets a chance to add any data that the server will need to
-     * know in order to correctly computer game logic, such as the client's viewbox
-     */
     clientInitData.player.screenHeight = global.screenHeight;
     clientInitData.player.screenWidth = global.screenWidth;
     clientInitData.player.type = "PLAYER";
+    global.playerType = "PLAYER";
 
     global.gameWidth = gameConfig.gameWidth;
     global.gameHeight = gameConfig.gameHeight;
@@ -180,6 +201,14 @@ function setupPlaySocket(socket) {
     }
   });
 
+  // MỚI: Nhận gói cập nhật máu trực tiếp từ Server để cập nhật tức thì khi trúng đạn
+  socket.on("hp_update", function (hp) {
+    var hpElement = document.getElementById("hp-bar") || document.getElementById("hp");
+    if (hpElement) {
+      hpElement.style.width = hp + "%";
+    }
+  });
+
   /**
    * Server wants to calculate my ping,
    * emit back to server right away.
@@ -194,22 +223,14 @@ function setupPlaySocket(socket) {
   socket.on("death", function () {
     console.log("Bạn đã hy sinh! Đang chờ hồi sinh tại vị trí mới...");
     clientGameObjects = {};
+    // Reset thanh máu về 0 khi chết tạm thời
+    var hpElement = document.getElementById("hp-bar") || document.getElementById("hp");
+    if (hpElement) hpElement.style.width = "0%";
   });
 }
 
 function setupSpectateSocket(socket) {
-  /**
-   *
-   * Server will send a welcome event with data the player needs to initialize itself
-   * The purpose of the event is to acknowledge that a user has joined
-   * Client will respond when it is ready to play the game
-   *
-   */
   socket.on("welcome", function (clientInitData, gameConfig) {
-    /**
-     * Here the client gets a chance to add any data that the server will need to
-     * know in order to correctly computer game logic, such as the client's viewbox
-     */
     clientInitData.player.screenHeight = global.screenHeight;
     clientInitData.player.screenWidth = global.screenWidth;
     clientInitData.player.type = "SPECTATOR";
@@ -262,10 +283,16 @@ function setupSpectateSocket(socket) {
 function resize() {
   global.screenWidth = window.innerWidth;
   global.screenHeight = window.innerHeight;
-  canvasGameBoard.setHeight(global.screenHeight);
-  canvasGameBoard.setWidth(global.screenWidth);
-  socket.emit("windowResized", {
-    screenWidth: global.screenWidth,
-    screenHeight: global.screenHeight
-  });
+
+  if (canvasGameBoard) {
+    canvasGameBoard.setHeight(global.screenHeight);
+    canvasGameBoard.setWidth(global.screenWidth);
+  }
+
+  if (socket) {
+    socket.emit("windowResized", {
+      screenWidth: global.screenWidth,
+      screenHeight: global.screenHeight
+    });
+  }
 }

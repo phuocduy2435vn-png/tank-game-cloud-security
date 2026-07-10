@@ -9,6 +9,8 @@ html, body {
 /* Get rid of scrollbars */
 canvas {
     display:block;
+    transform: translateZ(0);
+    backface-visibility: hidden;
 }
 
 .dark-background {

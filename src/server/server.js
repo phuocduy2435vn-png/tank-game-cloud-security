@@ -80,7 +80,7 @@ var radarObjects = {};
  */
 
 /**
- *  Here is where we attach the event handlers for the socket
+ * Here is where we attach the event handlers for the socket
  *
  * NOTE: inside the scope of this function, currentClientData will refer to
  * the client who is responsible for sending the socket event the server, meaning socket.id and currentClientData.id should be the same,
@@ -142,7 +142,7 @@ socketIo.on("connection", function (socket) {
 
     //players need to go into the quadtree and the currentClientDatas array
     //spectators just go in the currentClientDatasSpectators array so their logic can be processed separately
-    if (clientUpdatedData.player.type === "PLAYER") {
+    if (clientUpdatedData.player.type === "PLAYER" && currentClientData.tank) {
       currentClientDatas.push(currentClientData);
       quadtree.put(currentClientData.tank.forQuadtree());
     } else if (clientUpdatedData.player.type === "SPECTATOR") {
@@ -161,24 +161,22 @@ socketIo.on("connection", function (socket) {
 
   /**
    * When client calls socket.disconnect() on their end or the server calls socket.disconnect(), this event is automatically fired
-   * It is important to clean up anything that was put into the quadtree for this particular client
+   * SỬA LỖI: Thêm kiểm tra "if (currentClientData.tank)" để tránh crash server nếu người chơi thoát game quá sớm.
    */
   socket.on("disconnect", function () {
     /**
-     * Remove player's bullets
-     * Eventually it may be better to do this somewhere else, for now this will do
+     * Remove player's bullets & tank from quadtree
      */
-
-    for (let bullet of currentClientData.tank.bullets) {
-      quadtree.remove(bullet.forQuadtree());
+    if (currentClientData.tank) {
+      if (currentClientData.tank.bullets) {
+        for (let bullet of currentClientData.tank.bullets) {
+          quadtree.remove(bullet.forQuadtree());
+        }
+      }
+      quadtree.remove(currentClientData.tank.forQuadtree(), "id");
     }
 
-    /**
-     * Remove player from quadtree
-     */
-    quadtree.remove(currentClientData.tank.forQuadtree(), "id");
-
-    if (currentClientData.player.type === "PLAYER") {
+    if (currentClientData.player && currentClientData.player.type === "PLAYER") {
       var playerIndex = util.findIndex(
         currentClientDatas,
         currentClientData.id
@@ -190,7 +188,7 @@ socketIo.on("connection", function (socket) {
           `Player ${currentClientData.player.screenName} has been removed from tracked players.`
         );
       }
-    } else if (currentClientData.player.type === "SPECTATOR") {
+    } else if (currentClientData.player && currentClientData.player.type === "SPECTATOR") {
       var spectatorIndex = util.findIndex(
         currentClientDatasSpectators,
         currentClientData.id
@@ -222,6 +220,8 @@ socketIo.on("connection", function (socket) {
    * This is called at least once each time the client redraws the frame
    */
   socket.on("client_checkin", function (clientCheckinData) {
+    if (!currentClientData.player) return;
+
     if (clientCheckinData) {
       currentClientData.player.userInput = {
         keysPressed: clientCheckinData.keysPressed || config.defaultKeysPressed,
@@ -241,8 +241,10 @@ socketIo.on("connection", function (socket) {
   });
 
   socket.on("windowResized", function (data) {
-    currentClientData.player.screenWidth = data.screenWidth;
-    currentClientData.player.screenHeight = data.screenHeight;
+    if (currentClientData.player) {
+      currentClientData.player.screenWidth = data.screenWidth;
+      currentClientData.player.screenHeight = data.screenHeight;
+    }
   });
 });
 
@@ -255,10 +257,12 @@ socketIo.on("connection", function (socket) {
  */
 var checkPing = function () {
   currentClientDatas.forEach(function (clientData) {
-    currentClientDatas[
-      util.findIndex(currentClientDatas, clientData.id)
-    ].startPingTime = new Date().getTime();
-    sockets[clientData.id].emit("pingcheck");
+    if (sockets[clientData.id]) {
+      currentClientDatas[
+        util.findIndex(currentClientDatas, clientData.id)
+      ].startPingTime = new Date().getTime();
+      sockets[clientData.id].emit("pingcheck");
+    }
   });
 };
 
@@ -298,14 +302,9 @@ var clientUpdater = function () {
   function queryAndSendData(clientData) {
     if (!sockets[clientData.id] || !clientData.player) return;
 
-    // Xác định vị trí trung tâm để quét vùng nhìn (Camera)
-    // Nếu là Player thì lấy tọa độ xe tăng, nếu là Spectator không có vị trí thì mặc định lấy tâm map (hoặc 0,0)
-    var viewX = clientData.position
-      ? clientData.position.x
-      : config.gameWidth / 2;
-    var viewY = clientData.position
-      ? clientData.position.y
-      : config.gameHeight / 2;
+    // SỬA LỖI CAMERA: Lấy tọa độ từ xe tăng (x, y) thay vì vị trí chung chung để camera đi theo xe
+    var viewX = (clientData.tank && clientData.tank.x) ? clientData.tank.x : config.gameWidth / 2;
+    var viewY = (clientData.tank && clientData.tank.y) ? clientData.tank.y : config.gameHeight / 2;
 
     var queryArea = {
       x: viewX - clientData.player.screenWidth / 2,
@@ -321,7 +320,7 @@ var clientUpdater = function () {
     var ammo = {
       ammo: {
         capacity: config.tank.ammoCapacity,
-        count: clientData.tank ? clientData.tank.ammo : 0 // Tránh crash nếu spectator không có tank
+        count: clientData.tank ? clientData.tank.ammo : 0
       }
     };
 
@@ -332,13 +331,35 @@ var clientUpdater = function () {
       height: clientData.player.screenHeight
     };
 
+    // SỬA LỖI BẢO MẬT TÀNG HÌNH: Lấy vật thể từ Quadtree và lọc bỏ xe địch đang tàng hình
+    var gameObjects = quadtreeManager.queryGameObjects(queryArea);
+    if (gameObjects && gameObjects.tanks) {
+      gameObjects.tanks = gameObjects.tanks.filter(function (tank) {
+        // Luôn hiển thị xe của chính mình, ẩn xe của đối thủ nếu đối thủ đang tàng hình (isInvisible === true)
+        return tank.id === clientData.id || !tank.isInvisible;
+      });
+    }
+
+    // SỬA LỖI VẾT XÍCH XE: Lọc bỏ các vết xích của xe đang tàng hình nếu có dữ liệu id đính kèm
+    var tracksData = spatialHashManager.queryTracks(range);
+    if (tracksData && tracksData.tracks) {
+      tracksData.tracks = tracksData.tracks.filter(function (track) {
+        // Tìm chủ nhân của vết xích, nếu chủ nhân đang tàng hình thì không gửi vết xích của họ cho người khác
+        var owner = currentClientDatas.find(c => c.id === track.ownerId);
+        if (owner && owner.tank && owner.tank.isInvisible && owner.id !== clientData.id) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     sockets[clientData.id].emit(
       "game_objects_update",
       Object.assign(
         {},
         perspective,
-        quadtreeManager.queryGameObjects(queryArea),
-        spatialHashManager.queryTracks(range),
+        gameObjects,
+        tracksData,
         ammo,
         { scoreboard: scoreboardList },
         { radar: radarObjects }
@@ -353,6 +374,7 @@ var clientUpdater = function () {
     queryAndSendData(clientData);
   });
 };
+
 var updateScoreboard = function () {
   if (currentClientDatas.length === 0) {
     scoreboardList = [];
@@ -390,8 +412,20 @@ var updateScoreboard = function () {
     }
   );
 };
+
 var updateRadar = function () {
-  radarObjects = quadtreeManager.queryGameObjectsForType(["TANK", "WALL"]);
+  // Lấy dữ liệu dạng Object chứa danh sách các thực thể từ Quadtree
+  let data = quadtreeManager.queryGameObjectsForType(["TANK", "WALL"]);
+  
+  // Kiểm tra nếu có danh sách xe tăng (tanks) thì lọc bỏ xe đang tàng hình
+  if (data && data.tanks) {
+    data.tanks = data.tanks.filter(function (tank) {
+      return !tank.isInvisible; 
+    });
+  }
+  
+  // Gán Object đã được lọc sạch xe tàng hình vào radarObjects
+  radarObjects = data || {};
 };
 
 /**

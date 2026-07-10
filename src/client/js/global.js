@@ -8,7 +8,7 @@ module.exports = {
     '68': 'KEY_RIGHT',
     '83': 'KEY_DOWN',
     'drawing':{
-        'drawingOrder': ["perspective", "tracks", "tanks", "bullets", "walls", "ammo", "playerInfo", "scoreboard", "radar"],
+        'drawingOrder': ["perspective", "tanks", "bullets", "walls", "ammo", "scoreboard", "radar"],
         'ammo':{
             'tankXOffset': 45,
             'tankYOffset':40,

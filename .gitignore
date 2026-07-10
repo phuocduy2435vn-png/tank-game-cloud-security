@@ -1,4 +1,5 @@
 node_modules/
 bin/
 .env
-config.json
+config.jsonnode_modules/
+npm-debug.log

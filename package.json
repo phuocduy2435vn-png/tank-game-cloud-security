@@ -4,8 +4,9 @@
   "description": "A game written in JavaScript, uses WebSockets and HTML5 canvas. Runs in Node!",
   "main": "app.js",
   "scripts": {
-    "test": "node_modules/gulp/bin/gulp.js test",
-    "start": "node_modules/gulp/bin/gulp.js"
+    "test": "gulp test",
+    "start": "gulp",
+    "build": "gulp" 
   },
   "repository": {
     "type": "git",

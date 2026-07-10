@@ -35,31 +35,34 @@ class Sprite {
     };
 
     static render(sprite, context, image, destX, destY, radians = 0) {
-        // Save current context to prevent rotating everything drawn after this occurs
+        // Round coordinates to whole pixels to reduce sub-pixel blur and ghosting artifacts
+        const drawX = Math.round(destX);
+        const drawY = Math.round(destY);
+
         context.save();
 
-        // Move registration point to tank's position
-        context.translate(destX, destY);
-
-        // Rotate entire canvas desired amount for tank's hull to rotate
-        // (rotates around axis at tank's current location)
+        context.translate(drawX, drawY);
         context.rotate(radians);
+        context.translate(-drawX, -drawY);
 
-        // Move registration point back to the top left corner of canvas
-        // (necessary otherwise tank is drawn at wrong location since canvas has been rotated)
-        context.translate(-destX, -destY);
+        const frameWidth = sprite.singleFrameWidth;
+        const frameHeight = sprite.singleFrameHeight;
+        const drawWidth = frameWidth * sprite.scaleFactorWidth;
+        const drawHeight = frameHeight * sprite.scaleFactorHeight;
+        const offsetX = drawX - (frameWidth / 2) * sprite.scaleFactorWidth;
+        const offsetY = drawY - (frameHeight / 2) * sprite.scaleFactorHeight;
 
-        // Draw tank sprite at destination coordinates
+        context.imageSmoothingEnabled = true;
         context.drawImage(
-            image,                                                              // Specifies the image, canvas, or video element to use
-            sprite.rowFrameIndex * sprite.singleFrameWidth,                     // The x coordinate where to start clipping
-            sprite.colFrameIndex * sprite.singleFrameHeight,                    // The y coordinate where to start clipping
-            sprite.singleFrameWidth,                                            // The width of the clipped image
-            sprite.singleFrameHeight,                                           // The height of the clipped image
-            destX - (sprite.singleFrameWidth / 2) * sprite.scaleFactorWidth,    // The x coordinate where to place the image on the canvas
-            destY - (sprite.singleFrameHeight / 2) * sprite.scaleFactorHeight,  // The y coordinate where to place the image on the canvas
-            sprite.singleFrameWidth * sprite.scaleFactorWidth,                  // The width of the image to use (stretch or reduce the image)
-            sprite.singleFrameHeight * sprite.scaleFactorHeight                 // The height of the image to use (stretch or reduce the image)
+            image,
+            sprite.rowFrameIndex * frameWidth,
+            sprite.colFrameIndex * frameHeight,
+            frameWidth,
+            frameHeight,
+            Math.round(offsetX),
+            Math.round(offsetY),
+            Math.round(drawWidth),
+            Math.round(drawHeight)
         );
 
         context.restore();
