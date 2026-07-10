@@ -1,0 +1,48 @@
+name: Deploy Tank Game to Azure Container Apps with Security
+
+on:
+  push:
+    branches:
+      - main  # Kích hoạt tự động mỗi khi bạn push code lên nhánh main
+
+jobs:
+  build-and-secure:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. Kéo code từ GitHub về máy ảo của GitHub Actions
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    # 2. Đăng nhập vào Azure Container Registry bằng 2 Secret bạn vừa tạo ở Bước 2
+    - name: Log in to Azure Container Registry (ACR)
+      uses: azure/docker-login@v2
+      with:
+        login-server: tankgameregistry.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    # 3. Tiến hành đóng gói (Build) Docker Image
+    - name: Build Docker Image
+      run: |
+        docker build -t tankgameregistry.azurecr.io/tank-game:v1 .
+
+    # ==========================================
+    # PHẦN BẢO MẬT SUPPLY CHAIN (ĐÚNG CHỦ ĐỀ 7)
+    # ==========================================
+
+    # 4. Quét lỗ hổng bảo mật (Vulnerability) bằng công cụ TRIVY SCAN trước khi đẩy lên mây
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'tankgameregistry.azurecr.io/tank-game:v1'
+        format: 'table'
+        exit-code: '0' # Cho phép chạy tiếp để demo, đổi thành '1' nếu muốn chặn đứng pipeline khi có lỗi nặng
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+    # 5. Đẩy Image lên mây Azure ACR sau khi đã được quét an toàn
+    - name: Push Image to ACR
+      run: |
+        docker push tankgameregistry.azurecr.io/tank-game:v1
