@@ -5,7 +5,7 @@
 
 var config = require("../../../config.json");
 var Wall = require("./wall");
-var Bullet = require("./bullet");
+var Bullet = require("./bullet");   
 var Track = require("./track");
 var Direction = require("./direction");
 var util = require("./util");
@@ -181,11 +181,18 @@ class GameLogicService {
             tank.spriteTankHull.update();
             this.addTracks(tank, newPosition, angleInRadians);
         }
+	 if (!this.isPositionBlocked(newPosition, tank)) {
+            // Bước 1: Trích xuất và xóa vị trí cũ khỏi Quadtree trước khi cập nhật tọa độ
+            var currentQuadData = tank.forQuadtree();
+            this.quadtree.remove(currentQuadData, "id");
 
-        if (!this.isPositionBlocked(newPosition, tank)) {
+            // Bước 2: Cập nhật vị trí mới vào dữ liệu của tank và client
             clientData.position = newPosition;
             tank.x = newPosition.x;
             tank.y = newPosition.y;
+
+            // Bước 3: Đưa vị trí mới đã cập nhật vào lại Quadtree
+            this.quadtree.put(tank.forQuadtree());
         }
         // CHÚ Ý: ĐÃ BỎ put/remove đơn lẻ tại đây để tránh nghẽn luồng và trùng lặp Quadtree
     }
@@ -197,7 +204,7 @@ class GameLogicService {
             x: position.x - config.tank.width / 2,
             y: position.y - config.tank.height / 2,
             w: config.tank.width,
-            h: config.tank.height,
+            h: config.tank.height
         });
 
         return objects["WALL"].length > 0;
@@ -205,43 +212,46 @@ class GameLogicService {
 
     addTracks(tank, newPosition, angleInRadians) {
         if (!tank.path.hasFinishedDelay()) return;
-        let track1DestX = 0, track1DestY = 0, track2DestX = 0, track2DestY = 0;
-        let scaledHalfSingleFrame = (tank.spriteTankHull.singleFrameWidth / 2) * tank.spriteTankHull.scaleFactorWidth;
+        let track1DestX = 0,
+            track1DestY = 0,
+            track2DestX = 0,
+            track2DestY = 0;
+        let scaledHalfSingleFrame = tank.spriteTankHull.singleFrameWidth / 2 * tank.spriteTankHull.scaleFactorWidth;
         let straightCorrection = 0.52941 * scaledHalfSingleFrame;
         let diagonalCorrection = 0.75294 * scaledHalfSingleFrame;
 
         switch (parseFloat(angleInRadians)) {
             case Direction.E:
-                track1DestX = newPosition.x + straightCorrection; track1DestY = newPosition.y - straightCorrection;
-                track2DestX = newPosition.x + straightCorrection; track2DestY = newPosition.y + straightCorrection;
+                track1DestX = newPosition.x + straightCorrection;track1DestY = newPosition.y - straightCorrection;
+                track2DestX = newPosition.x + straightCorrection;track2DestY = newPosition.y + straightCorrection;
                 break;
             case Direction.SE:
-                track1DestX = newPosition.x; track1DestY = newPosition.y + diagonalCorrection;
-                track2DestX = newPosition.x + diagonalCorrection; track2DestY = newPosition.y;
+                track1DestX = newPosition.x;track1DestY = newPosition.y + diagonalCorrection;
+                track2DestX = newPosition.x + diagonalCorrection;track2DestY = newPosition.y;
                 break;
             case Direction.S:
-                track1DestX = newPosition.x - straightCorrection; track1DestY = newPosition.y + straightCorrection;
-                track2DestX = newPosition.x + straightCorrection; track2DestY = newPosition.y + straightCorrection;
+                track1DestX = newPosition.x - straightCorrection;track1DestY = newPosition.y + straightCorrection;
+                track2DestX = newPosition.x + straightCorrection;track2DestY = newPosition.y + straightCorrection;
                 break;
             case Direction.SW:
-                track1DestX = newPosition.x - diagonalCorrection; track1DestY = newPosition.y;
-                track2DestX = newPosition.x; track2DestY = newPosition.y + diagonalCorrection;
+                track1DestX = newPosition.x - diagonalCorrection;track1DestY = newPosition.y;
+                track2DestX = newPosition.x;track2DestY = newPosition.y + diagonalCorrection;
                 break;
             case Direction.W:
-                track1DestX = newPosition.x - straightCorrection; track1DestY = newPosition.y - straightCorrection;
-                track2DestX = newPosition.x - straightCorrection; track2DestY = newPosition.y + straightCorrection;
+                track1DestX = newPosition.x - straightCorrection;track1DestY = newPosition.y - straightCorrection;
+                track2DestX = newPosition.x - straightCorrection;track2DestY = newPosition.y + straightCorrection;
                 break;
             case Direction.NW:
-                track1DestX = newPosition.x - diagonalCorrection; track1DestY = newPosition.y;
-                track2DestX = newPosition.x; track2DestY = newPosition.y - diagonalCorrection;
+                track1DestX = newPosition.x - diagonalCorrection;track1DestY = newPosition.y;
+                track2DestX = newPosition.x;track2DestY = newPosition.y - diagonalCorrection;
                 break;
             case Direction.N:
-                track1DestX = newPosition.x - straightCorrection; track1DestY = newPosition.y - straightCorrection;
-                track2DestX = newPosition.x + straightCorrection; track2DestY = newPosition.y - straightCorrection;
+                track1DestX = newPosition.x - straightCorrection;track1DestY = newPosition.y - straightCorrection;
+                track2DestX = newPosition.x + straightCorrection;track2DestY = newPosition.y - straightCorrection;
                 break;
             case Direction.NE:
-                track1DestX = newPosition.x; track1DestY = newPosition.y - diagonalCorrection;
-                track2DestX = newPosition.x + diagonalCorrection; track2DestY = newPosition.y;
+                track1DestX = newPosition.x;track1DestY = newPosition.y - diagonalCorrection;
+                track2DestX = newPosition.x + diagonalCorrection;track2DestY = newPosition.y;
                 break;
         }
 
@@ -253,11 +263,7 @@ class GameLogicService {
 
     increaseAmmoIfNecessary(clientData, time) {
         if (!clientData.tank) return;
-        if (
-            clientData.tank.ammo < config.tank.ammoCapacity &&
-            (time - clientData.tank.lastAmmoEarned > config.tank.timeToGainAmmo ||
-                typeof clientData.tank.lastAmmoEarned === "undefined")
-        ) {
+        if (clientData.tank.ammo < config.tank.ammoCapacity && (time - clientData.tank.lastAmmoEarned > config.tank.timeToGainAmmo || typeof clientData.tank.lastAmmoEarned === "undefined")) {
             clientData.tank.ammo = clientData.tank.ammo + 1;
             clientData.tank.lastAmmoEarned = time;
         }
@@ -312,12 +318,7 @@ class GameLogicService {
 
     fireBulletsIfNecessary(clientData, time) {
         if (!clientData.tank) return;
-        if (
-            clientData.player.userInput.mouseClicked &&
-            clientData.tank.ammo > 0 &&
-            (typeof clientData.tank.lastFireTime === "undefined" ||
-                time - clientData.tank.lastFireTime > config.tank.fireTimeWait)
-        ) {
+        if (clientData.player.userInput.mouseClicked && clientData.tank.ammo > 0 && (typeof clientData.tank.lastFireTime === "undefined" || time - clientData.tank.lastFireTime > config.tank.fireTimeWait)) {
             clientData.tank.lastFireTime = time;
             clientData.tank.ammo = clientData.tank.ammo - 1;
 
@@ -331,7 +332,7 @@ class GameLogicService {
                 x: bulletStartX,
                 y: bulletStartY,
                 w: config.bullet.width,
-                h: config.bullet.height,
+                h: config.bullet.height
             })["WALL"];
 
             if (!walls.length) {
@@ -386,7 +387,7 @@ class GameLogicService {
             clientData.tank.hp = 100;
             this.quadtree.remove(clientData.tank.forQuadtree(), "id");
         }
-        
+
         let spawnPoint = GameLogicService.getSpawnLocation(this.quadtreeManager);
 
         clientData.position = spawnPoint;
@@ -398,7 +399,7 @@ class GameLogicService {
 
         socket.emit("welcome", clientData, {
             gameWidth: config.gameWidth,
-            gameHeight: config.gameHeight,
+            gameHeight: config.gameHeight
         });
     }
 
@@ -414,7 +415,7 @@ class GameLogicService {
                 x: x - config.spawnAreaWidth / 2,
                 y: y - config.spawnAreaHeight / 2,
                 w: config.spawnAreaWidth,
-                h: config.spawnAreaHeight,
+                h: config.spawnAreaHeight
             });
 
             let isEmpty = true;
@@ -433,7 +434,7 @@ class GameLogicService {
 
         return {
             x: Math.floor(config.gameWidth / 2),
-            y: Math.floor(config.gameHeight / 2),
+            y: Math.floor(config.gameHeight / 2)
         };
     }
 }
