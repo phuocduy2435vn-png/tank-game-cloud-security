@@ -183,9 +183,17 @@ class GameLogicService {
         }
 
         if (!this.isPositionBlocked(newPosition, tank)) {
+            // Bước 1: Trích xuất và xóa vị trí cũ khỏi Quadtree trước khi cập nhật tọa độ
+            var currentQuadData = tank.forQuadtree();
+            this.quadtree.remove(currentQuadData, "id");
+
+            // Bước 2: Cập nhật vị trí mới vào dữ liệu của tank và client
             clientData.position = newPosition;
             tank.x = newPosition.x;
             tank.y = newPosition.y;
+
+            // Bước 3: Đưa vị trí mới đã cập nhật vào lại Quadtree
+            this.quadtree.put(tank.forQuadtree());
         }
         // CHÚ Ý: ĐÃ BỎ put/remove đơn lẻ tại đây để tránh nghẽn luồng và trùng lặp Quadtree
     }

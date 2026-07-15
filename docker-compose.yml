@@ -1,0 +1,15 @@
+services:
+  tank-game:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: tank-game
+
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      NODE_ENV: production
