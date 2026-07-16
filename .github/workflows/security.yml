@@ -99,13 +99,13 @@ jobs:
       run: |
         cosign sign --yes tankgameregistry.azurecr.io/tank-game:latest
 
-    # Bước 9.5: Xác minh chữ ký số của Image vừa ký (Đã lược bớt regex identity theo yêu cầu)
+    # Bước 9.5: Xác minh chữ ký số của Image vừa ký (Đã cập nhật cấu hình theo yêu cầu của bạn)
     - name: Verify Image Signature
       env:
         COSIGN_EXPERIMENTAL: "1"
       run: |
         cosign verify \
-          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+          --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
           tankgameregistry.azurecr.io/tank-game:latest
 
     # =========================================================================
