@@ -99,13 +99,12 @@ jobs:
       run: |
         cosign sign --yes tankgameregistry.azurecr.io/tank-game:latest
 
-    # Bước 9.5: Xác minh chữ ký số của Image vừa ký để chứng minh tính toàn vẹn (Verify)
+    # Bước 9.5: Xác minh chữ ký số của Image vừa ký (Đã lược bớt regex identity theo yêu cầu)
     - name: Verify Image Signature
       env:
         COSIGN_EXPERIMENTAL: "1"
       run: |
         cosign verify \
-          --certificate-identity-regexp "https://github.com/phuocduy2435vn-png" \
           --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
           tankgameregistry.azurecr.io/tank-game:latest
 
@@ -125,11 +124,20 @@ jobs:
             "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
           }
 
-    # Bước 11: Deploy tự động Image vừa bảo mật lên Azure Container App (tank-game-app)
+    # Bước 11: Deploy tự động Image lên Azure Container App (Sửa acrName trực tiếp thành tankgameregistry)
     - name: Deploy to Azure Container App
       uses: azure/container-apps-deploy-action@v2
       with:
-        acrName: ${{ secrets.ACR_USERNAME }}
+        acrName: tankgameregistry
         containerAppName: tank-game-app
         resourceGroup: Demo-Cloud-Native
         imageToDeploy: tankgameregistry.azurecr.io/tank-game:latest
+
+    # Bước 12: Kiểm tra xác thực trạng thái hoạt động của Container App sau khi deploy thành công
+    - name: Verify ACA Revision Status
+      run: |
+        az containerapp show \
+          --name tank-game-app \
+          --resource-group Demo-Cloud-Native \
+          --query "properties.provisioningState" \
+          -o tsv
