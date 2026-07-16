@@ -44,16 +44,25 @@ jobs:
     # PHẦN 2: TRIỂN KHAI CÁC CÔNG CỤ BẢO MẬT CHUỖI CUNG ỨNG (SUPPLY CHAIN SECURITY)
     # =========================================================================
 
-    # Bước 4: Sử dụng công cụ TRIVY để quét các lỗ hổng an ninh bảo mật (CVE) trên bản latest
+    # Bước 4: Sử dụng công cụ TRIVY để quét các lỗ hổng an ninh bảo mật (CVE) trên bản latest và xuất báo cáo HTML
     - name: Run Trivy Vulnerability Scanner
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: 'tankgameregistry.azurecr.io/tank-game:latest'
-        format: 'table'      # Hiển thị kết quả dạng bảng trực quan trong log để chụp ảnh làm báo cáo
+        format: 'template'
+        template: '@/contrib/html.tpl' # Sử dụng template HTML có sẵn của Trivy để tạo giao diện đẹp mắt
+        output: 'trivy-report.html'   # Tên file báo cáo xuất ra
         exit-code: '0'       # Trả về mã 0 để tiếp tục demo
         ignore-unfixed: true # Bỏ qua các lỗ hổng mà thư viện mã nguồn mở chưa có bản vá công khai
         vuln-type: 'os,library' # Quét cả hệ điều hành nền lẫn các thư viện Node.js
         severity: 'CRITICAL,HIGH' # Chỉ tập trung lọc ra các lỗi ở mức độ Nguy hiểm và Cực kỳ nguy hiểm
+
+    # Bước 4.5: Đóng gói và tải báo cáo Trivy lên GitHub Artifacts để tải về làm minh chứng
+    - name: Upload Trivy Scan Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: tank-game-trivy-report
+        path: trivy-report.html
 
     # Bước 5: Sử dụng công cụ Syft để kiểm kê và tự động xuất danh mục linh kiện phần mềm (SBOM)
     - name: Generate SBOM using Syft
@@ -89,6 +98,16 @@ jobs:
         COSIGN_EXPERIMENTAL: "1" # Kích hoạt chế độ thử nghiệm ký số Keyless tiên tiến của Sigstore
       run: |
         cosign sign --yes tankgameregistry.azurecr.io/tank-game:latest
+
+    # Bước 9.5: Xác minh chữ ký số của Image vừa ký để chứng minh tính toàn vẹn (Verify)
+    - name: Verify Image Signature
+      env:
+        COSIGN_EXPERIMENTAL: "1"
+      run: |
+        cosign verify \
+          --certificate-identity-regexp "https://github.com/phuocduy2435vn-png" \
+          --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+          tankgameregistry.azurecr.io/tank-game:latest
 
     # =========================================================================
     # PHẦN 4: ĐĂNG NHẬP VÀ DEPLOY TỰ ĐỘNG LÊN AZURE CONTAINER APP
