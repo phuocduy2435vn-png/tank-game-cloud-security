@@ -34,21 +34,21 @@ jobs:
         password: ${{ secrets.ACR_PASSWORD }}
 
     # ---------------------------------------------------------------------
-    # Bước 3: Đóng gói toàn bộ code game thành file Docker Image
+    # Bước 3: Đóng gói toàn bộ code game thành file Docker Image với tag latest
     # ---------------------------------------------------------------------
     - name: Build Docker Image
       run: |
-        docker build -t tankgameregistry.azurecr.io/tank-game:v1 .
+        docker build -t tankgameregistry.azurecr.io/tank-game:latest .
 
     # =========================================================================
     # PHẦN 2: TRIỂN KHAI CÁC CÔNG CỤ BẢO MẬT CHUỖI CUNG ỨNG (SUPPLY CHAIN SECURITY)
     # =========================================================================
 
-    # Bước 4: Sử dụng công cụ TRIVY để quét các lỗ hổng an ninh bảo mật (CVE)
+    # Bước 4: Sử dụng công cụ TRIVY để quét các lỗ hổng an ninh bảo mật (CVE) trên bản latest
     - name: Run Trivy Vulnerability Scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'tankgameregistry.azurecr.io/tank-game:v1'
+        image-ref: 'tankgameregistry.azurecr.io/tank-game:latest'
         format: 'table'      # Hiển thị kết quả dạng bảng trực quan trong log để chụp ảnh làm báo cáo
         exit-code: '0'       # Trả về mã 0 để tiếp tục demo
         ignore-unfixed: true # Bỏ qua các lỗ hổng mà thư viện mã nguồn mở chưa có bản vá công khai
@@ -59,7 +59,7 @@ jobs:
     - name: Generate SBOM using Syft
       uses: anchore/sbom-action@v0
       with:
-        image: 'tankgameregistry.azurecr.io/tank-game:v1'
+        image: 'tankgameregistry.azurecr.io/tank-game:latest'
         output-file: 'sbom.spdx.json' # Tên file chứa kết quả danh mục linh kiện
         format: 'spdx-json'           # Xuất theo định dạng tiêu chuẩn quốc tế SPDX để kiểm toán an ninh
 
@@ -77,7 +77,7 @@ jobs:
     # Bước 7: Đẩy chính thức Docker Image đã qua kiểm duyệt lên mây Azure ACR
     - name: Push Image to ACR
       run: |
-        docker push tankgameregistry.azurecr.io/tank-game:v1
+        docker push tankgameregistry.azurecr.io/tank-game:latest
 
     # Bước 8: Khởi tạo và cài đặt công cụ ký số điện tử Cosign vào runner
     - name: Install Cosign
@@ -88,7 +88,7 @@ jobs:
       env:
         COSIGN_EXPERIMENTAL: "1" # Kích hoạt chế độ thử nghiệm ký số Keyless tiên tiến của Sigstore
       run: |
-        cosign sign --yes tankgameregistry.azurecr.io/tank-game:v1 # Khẳng định "Tôi chính là tác giả bản build sạch này"
+        cosign sign --yes tankgameregistry.azurecr.io/tank-game:latest
 
     # =========================================================================
     # PHẦN 4: ĐĂNG NHẬP VÀ DEPLOY TỰ ĐỘNG LÊN AZURE CONTAINER APP
@@ -113,4 +113,4 @@ jobs:
         acrName: ${{ secrets.ACR_USERNAME }}
         containerAppName: tank-game-app
         resourceGroup: Demo-Cloud-Native
-        imageToDeploy: tankgameregistry.azurecr.io/tank-game:v1
+        imageToDeploy: tankgameregistry.azurecr.io/tank-game:latest
